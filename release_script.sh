@@ -23,3 +23,26 @@ echo "Creating new tag: ${tag_date}"
 git tag ${tag_date}
 echo "Pushing tag"
 git push origin refs/tags/${tag_date}
+
+echo "Contacting GitHub API..."
+
+# Create the JSON payload
+api_json=$(cat <<EOF
+{
+  "tag_name": "$tag_date",
+  "target_commitish": "main",
+  "name": "Release $tag_date",
+  "draft": false,
+  "prerelease": false
+}
+EOF
+)
+
+# Send the Request
+curl -s -X POST \
+     -H "Authorization: Bearer $GITHUB_TOKEN \
+     -H "Accept: application/vnd.github.v3+json" \
+     -d "$api_json" \
+     "https://api.github.com/repos/akarrar16/release-automation-test/releases"
+
+echo "Release creation request sent."
