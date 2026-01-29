@@ -1,3 +1,5 @@
+git fetch --prune --prune-tags origin
+
 current_date=$(date '+%Y-%m-%d')
 echo "Current date: ${current_date}"
 tag_date=${current_date//-/.}
