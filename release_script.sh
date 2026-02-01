@@ -41,9 +41,21 @@ git tag ${tag_date}
 echo "Pushing tag"
 git push origin refs/tags/${tag_date}
 
-echo "Generating Release Notes..."
-# Get commit messages between the last tag and now
-release_notes=$(git log "${latest_tag}..HEAD" --pretty=format:"- %s")
+eecho "Generating Release Notes..."
+if [ -z "$latest_tag" ]; then
+    release_notes="- Initial Release"
+else
+    # Get commit messages between the last tag and now
+    # We use 'git log' to get the subject lines
+    raw_notes=$(git log "${latest_tag}..HEAD" --pretty=format:"- %s")
+    
+    # If raw_notes is empty (no commits since last tag), use a fallback message
+    if [ -z "$raw_notes" ]; then
+        release_notes="- No new commits (Maintenance release or testing)"
+    else
+        release_notes="$raw_notes"
+    fi
+fi
 
 # Escape backslashes and double quotes for JSON compliance
 release_notes="${release_notes//\\/\\\\}"
