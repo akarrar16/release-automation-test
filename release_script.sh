@@ -18,7 +18,7 @@ exit 0
 fi
 if [ $(git tag -l "$tag_date") ]; then
 echo "ERROR: Tag $tag_date already exist!"
-exit 1
+# exit 1
 fi
 
 if [ $(git tag -l "$tag_date") ]; then
