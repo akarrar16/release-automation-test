@@ -42,7 +42,7 @@ EOF
 
 # Send the Request
 curl -s -X POST \
-     -H "Authorization: Bearer $GITHUB_TOKEN \
+     -H "Authorization: Bearer $GITHUB_TOKEN" \
      -H "Accept: application/vnd.github.v3+json" \
      -d "$api_json" \
      "https://api.github.com/repos/akarrar16/release-automation-test/releases"
