@@ -21,6 +21,21 @@ echo "ERROR: Tag $tag_date already exist!"
 exit 1
 fi
 
+# if [ $(git tag -l "$tag_date") ]; then
+#     echo "Tag $tag_date already exists. calculating increment..."
+#     counter=1
+#     while true; do
+#         candidate_tag="${tag_date}.${counter}"
+#         if [ ! $(git tag -l "$candidate_tag") ]; then
+#             tag_date="$candidate_tag"
+#             break
+#         fi
+#         ((counter++))
+#     done
+# fi
+
+echo "New tag will be: ${tag_date}"
+
 echo "Creating new tag: ${tag_date}"
 git tag ${tag_date}
 echo "Pushing tag"
@@ -44,6 +59,7 @@ api_json=$(cat <<EOF
   "tag_name": "$tag_date",
   "target_commitish": "main",
   "name": "Release $tag_date",
+  "body": "Automated Release.\\n\\nChanges:\\n$release_notes",
   "draft": false,
   "prerelease": false
 }
