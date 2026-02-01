@@ -26,6 +26,16 @@ git tag ${tag_date}
 echo "Pushing tag"
 git push origin refs/tags/${tag_date}
 
+echo "Generating Release Notes..."
+# Get commit messages between the last tag and now
+release_notes=$(git log "${latest_tag}..HEAD" --pretty=format:"- %s")
+
+# Escape backslashes and double quotes for JSON compliance
+release_notes="${release_notes//\\/\\\\}"
+release_notes="${release_notes//\"/\\\"}"
+# Escape newlines (replace literal newline with \n)
+release_notes="${release_notes//$'\n'/\\n}"
+
 echo "Contacting GitHub API..."
 
 # Create the JSON payload
