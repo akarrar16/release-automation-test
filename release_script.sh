@@ -1,4 +1,9 @@
+#!/bin/bash
+set -e
+
 git fetch --prune --prune-tags origin
+
+response_body_file="response.json"
 
 current_date=$(date '+%Y-%m-%d')
 echo "Current date: ${current_date}"
@@ -98,14 +103,14 @@ if [ "$http_code" -eq 201 ]; then
 else
     echo "ERROR: Failed to create release. HTTP Status: $http_code"
     echo "Server Response:"
-    cat "$response_body_file"
+    cat "$response_body_file" || echo "No response body."
     # Clean up and exit with error
-    rm "$json_payload_file" "$response_body_file"
+    rm "$response_body_file"
     exit 1
 fi
 
 # Cleanup
-rm "$json_payload_file" "$response_body_file"
+rm "$response_body_file"
 
 echo ""
 echo "Done."
