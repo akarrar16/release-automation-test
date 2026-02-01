@@ -48,3 +48,5 @@ curl -s -X POST \
      "https://api.github.com/repos/akarrar16/release-automation-test/releases"
 
 echo "Release creation request sent."
+
+echo "Checking if creation was successful ..."
