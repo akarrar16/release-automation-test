@@ -80,12 +80,32 @@ EOF
 )
 
 # Send the Request
-curl -s -X POST \
+http_code=$(curl -s -X POST \
      -H "Authorization: Bearer $GITHUB_TOKEN" \
-     -H "Accept: application/vnd.github.v3+json" \
+     -H "Accept: application/json" \
      -d "$api_json" \
-     "https://api.github.com/repos/akarrar16/release-automation-test/releases"
+     -w "%{http_code}" \
+     -o "$response_body_file" \
+     "https://api.github.com/repos/akarrar16/release-automation-test/releases")
 
 echo "Release creation request sent."
-
 echo "Checking if creation was successful ..."
+
+# Check the response
+if [ "$http_code" -eq 201 ]; then
+    echo "SUCCESS: Release $tag_date created successfully!"
+    echo "Release URL: $(grep -o '"html_url": "[^"]*' "$response_body_file" | cut -d'"' -f4)"
+else
+    echo "ERROR: Failed to create release. HTTP Status: $http_code"
+    echo "Server Response:"
+    cat "$response_body_file"
+    # Clean up and exit with error
+    rm "$json_payload_file" "$response_body_file"
+    exit 1
+fi
+
+# Cleanup
+rm "$json_payload_file" "$response_body_file"
+
+echo ""
+echo "Done."
