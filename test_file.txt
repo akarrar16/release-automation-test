@@ -6,3 +6,5 @@ One more line (NEW LINE)
 One more line (Another NEW LINE)
 One more line (Another NEW LINE for more testing)
 One more line (Another NEW LINE for more testing #2)
+
+This file is intended for the testing of the automatic release eneration script
