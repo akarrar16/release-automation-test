@@ -51,107 +51,100 @@ echo "Generating Release Notes..."
 # --- START: HEURISTIC RELEASE NOTES GENERATOR ---
 echo "Generating structured release notes (Rule-Based)..."
 
-# Initialize categories
-feats=""
-fixes=""
-maint=""
-docs=""
-others=""
+# Ensure temp files are clean
+rm -f temp_feats.txt temp_fixes.txt temp_maint.txt temp_docs.txt temp_others.txt
 
 # Get raw commits (Subject only) from the range
-# We use a loop to process line by line
 git log "${latest_tag}..HEAD" --pretty=format:"%s" | while read -r line; do
     
     # 1. CLEANING
-    # Skip "Merge pull request" lines (too noisy)
     if [[ "$line" == *"Merge pull request"* ]] || [[ "$line" == *"Merge branch"* ]]; then
         continue
     fi
     
-    # Remove Jira/Ticket IDs (e.g., [ABC-123] or ABC-123) for cleaner reading
+    # Remove Jira/Ticket IDs
     clean_line=$(echo "$line" | sed -E 's/\[?[A-Z]+-[0-9]+\]?[-: ]*//g')
     
     # 2. CATEGORIZATION (Case Insensitive)
-    # We check for keywords to decide where to put the line
-    
     if echo "$clean_line" | grep -iqE "^(feat|add|new|implement|feature)"; then
-        # It's a Feature
         echo "- $clean_line" >> temp_feats.txt
-        
     elif echo "$clean_line" | grep -iqE "^(fix|bug|resolve|patch|hotfix)"; then
-        # It's a Fix
         echo "- $clean_line" >> temp_fixes.txt
-        
     elif echo "$clean_line" | grep -iqE "^(doc|readme|comment)"; then
-        # It's Documentation
         echo "- $clean_line" >> temp_docs.txt
-        
     elif echo "$clean_line" | grep -iqE "^(chore|ci|test|refactor|perf|maint|clean)"; then
-        # It's Maintenance
         echo "- $clean_line" >> temp_maint.txt
-        
     else
-        # Everything else
         echo "- $clean_line" >> temp_others.txt
     fi
 done
 
 # 3. ASSEMBLE THE MARKDOWN
-# We build the final string variable.
-release_notes="# Release Notes for $tag_date\n\n"
+# We write to a temporary file first to handle newlines correctly
+notes_file="final_notes.md"
+echo "# Release Notes for $tag_date" > "$notes_file"
+echo "" >> "$notes_file"
 
 if [ -f temp_feats.txt ]; then
-    release_notes="${release_notes}## 🚀 New Features\n$(cat temp_feats.txt)\n\n"
+    echo "## 🚀 New Features" >> "$notes_file"
+    cat temp_feats.txt >> "$notes_file"
+    echo "" >> "$notes_file"
     rm temp_feats.txt
 fi
 
 if [ -f temp_fixes.txt ]; then
-    release_notes="${release_notes}## 🐛 Bug Fixes\n$(cat temp_fixes.txt)\n\n"
+    echo "## 🐛 Bug Fixes" >> "$notes_file"
+    cat temp_fixes.txt >> "$notes_file"
+    echo "" >> "$notes_file"
     rm temp_fixes.txt
 fi
 
 if [ -f temp_maint.txt ]; then
-    release_notes="${release_notes}## 🔧 Maintenance & Performance\n$(cat temp_maint.txt)\n\n"
+    echo "## 🔧 Maintenance & Performance" >> "$notes_file"
+    cat temp_maint.txt >> "$notes_file"
+    echo "" >> "$notes_file"
     rm temp_maint.txt
 fi
 
 if [ -f temp_docs.txt ]; then
-    release_notes="${release_notes}## 📚 Documentation\n$(cat temp_docs.txt)\n\n"
+    echo "## 📚 Documentation" >> "$notes_file"
+    cat temp_docs.txt >> "$notes_file"
+    echo "" >> "$notes_file"
     rm temp_docs.txt
 fi
 
 if [ -f temp_others.txt ]; then
-    release_notes="${release_notes}## 📦 Other Changes\n$(cat temp_others.txt)\n\n"
+    echo "## 📦 Other Changes" >> "$notes_file"
+    cat temp_others.txt >> "$notes_file"
+    echo "" >> "$notes_file"
     rm temp_others.txt
 fi
 
 echo "--- Generated Notes Preview ---"
-echo -e "$release_notes"
+cat "$notes_file"
 echo "-----------------------------"
 
 # --- END: HEURISTIC GENERATOR ---
 
-# Escape backslashes and double quotes for JSON compliance
-release_notes="${release_notes//\\/\\\\}"
-release_notes="${release_notes//\"/\\\"}"
-# Escape newlines (replace literal newline with \n)
-release_notes="${release_notes//$'\n'/\\n}"
-
-
 echo "Contacting GitHub API..."
 
-# Create the JSON payload
-api_json=$(cat <<EOF
-{
-  "tag_name": "$tag_date",
-  "target_commitish": "main",
-  "name": "Release $tag_date",
-  "body": "Automated Release.\\n\\nChanges:\\n$release_notes",
-  "draft": false,
-  "prerelease": false
-}
-EOF
-)
+# --- FIXED JSON CONSTRUCTION ---
+# We use Python to read the file content and dump it as a properly escaped JSON string.
+# This handles all newlines, quotes, and special characters automatically.
+
+api_json=$(python3 -c "import json, sys; 
+content = open('$notes_file', 'r').read(); 
+print(json.dumps({
+  'tag_name': '$tag_date', 
+  'target_commitish': 'main', 
+  'name': 'Release $tag_date', 
+  'body': content, 
+  'draft': False, 
+  'prerelease': False
+}))")
+
+# Clean up the notes file
+rm "$notes_file"
 
 # Send the Request
 http_code=$(curl -s -X POST \
