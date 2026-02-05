@@ -47,43 +47,89 @@ git tag ${tag_date}
 echo "Pushing tag"
 git push origin refs/tags/${tag_date}
 
-# --- CHANGED SECTION START: GITHUB NATIVE GENERATION ---
-echo "Generating Release Notes via GitHub API..."
+echo "Generating Release Notes..."
+# --- START: HEURISTIC RELEASE NOTES GENERATOR ---
+echo "Generating structured release notes (Rule-Based)..."
 
-# Define the Repo URL base (Extracted from your bottom curl command)
-REPO_API_URL="https://api.github.com/repos/akarrar16/release-automation-test/releases"
+# Initialize categories
+feats=""
+fixes=""
+maint=""
+docs=""
+others=""
 
-# Prepare JSON payload for generation
-# We check if a previous tag exists to define the range
-if [ -z "$latest_tag" ]; then
-    gen_payload="{\"tag_name\": \"$tag_date\"}"
-else
-    gen_payload="{\"tag_name\": \"$tag_date\", \"previous_tag_name\": \"$latest_tag\"}"
+# Get raw commits (Subject only) from the range
+# We use a loop to process line by line
+git log "${latest_tag}..HEAD" --pretty=format:"%s" | while read -r line; do
+    
+    # 1. CLEANING
+    # Skip "Merge pull request" lines (too noisy)
+    if [[ "$line" == *"Merge pull request"* ]] || [[ "$line" == *"Merge branch"* ]]; then
+        continue
+    fi
+    
+    # Remove Jira/Ticket IDs (e.g., [ABC-123] or ABC-123) for cleaner reading
+    clean_line=$(echo "$line" | sed -E 's/\[?[A-Z]+-[0-9]+\]?[-: ]*//g')
+    
+    # 2. CATEGORIZATION (Case Insensitive)
+    # We check for keywords to decide where to put the line
+    
+    if echo "$clean_line" | grep -iqE "^(feat|add|new|implement|feature)"; then
+        # It's a Feature
+        echo "- $clean_line" >> temp_feats.txt
+        
+    elif echo "$clean_line" | grep -iqE "^(fix|bug|resolve|patch|hotfix)"; then
+        # It's a Fix
+        echo "- $clean_line" >> temp_fixes.txt
+        
+    elif echo "$clean_line" | grep -iqE "^(doc|readme|comment)"; then
+        # It's Documentation
+        echo "- $clean_line" >> temp_docs.txt
+        
+    elif echo "$clean_line" | grep -iqE "^(chore|ci|test|refactor|perf|maint|clean)"; then
+        # It's Maintenance
+        echo "- $clean_line" >> temp_maint.txt
+        
+    else
+        # Everything else
+        echo "- $clean_line" >> temp_others.txt
+    fi
+done
+
+# 3. ASSEMBLE THE MARKDOWN
+# We build the final string variable.
+release_notes="# Release Notes for $tag_date\n\n"
+
+if [ -f temp_feats.txt ]; then
+    release_notes="${release_notes}## 🚀 New Features\n$(cat temp_feats.txt)\n\n"
+    rm temp_feats.txt
 fi
 
-# Call GitHub generate-notes endpoint
-# We use a temporary file to store the response
-gen_notes_response=$(mktemp)
-
-http_code_gen=$(curl -s -X POST \
-     -H "Authorization: Bearer $GITHUB_TOKEN" \
-     -H "Accept: application/json" \
-     -d "$gen_payload" \
-     -w "%{http_code}" \
-     -o "$gen_notes_response" \
-     "${REPO_API_URL}/generate-notes")
-
-if [ "$http_code_gen" -eq 200 ]; then
-    echo "GitHub successfully generated notes."
-    # Extract the 'body' field using Python (safest way to handle JSON in bash)
-    release_notes=$(cat "$gen_notes_response" | python3 -c "import sys, json; print(json.load(sys.stdin).get('body', ''))")
-else
-    echo "WARNING: Failed to generate notes via GitHub API (HTTP $http_code_gen). Defaulting to simple message."
-    release_notes="Automated release for $tag_date"
+if [ -f temp_fixes.txt ]; then
+    release_notes="${release_notes}## 🐛 Bug Fixes\n$(cat temp_fixes.txt)\n\n"
+    rm temp_fixes.txt
 fi
 
-rm "$gen_notes_response"
-# --- CHANGED SECTION END ---
+if [ -f temp_maint.txt ]; then
+    release_notes="${release_notes}## 🔧 Maintenance & Performance\n$(cat temp_maint.txt)\n\n"
+    rm temp_maint.txt
+fi
+
+if [ -f temp_docs.txt ]; then
+    release_notes="${release_notes}## 📚 Documentation\n$(cat temp_docs.txt)\n\n"
+    rm temp_docs.txt
+fi
+
+if [ -f temp_others.txt ]; then
+    release_notes="${release_notes}## 📦 Other Changes\n$(cat temp_others.txt)\n\n"
+    rm temp_others.txt
+fi
+
+echo "--- Generated Notes Preview ---"
+echo -e "$release_notes"
+echo "-----------------------------"
+
+# --- END: HEURISTIC GENERATOR ---
 
 # Escape backslashes and double quotes for JSON compliance
 release_notes="${release_notes//\\/\\\\}"
@@ -91,16 +137,16 @@ release_notes="${release_notes//\"/\\\"}"
 # Escape newlines (replace literal newline with \n)
 release_notes="${release_notes//$'\n'/\\n}"
 
+
 echo "Contacting GitHub API..."
 
 # Create the JSON payload
-# Note: I removed "Automated Release\n\nChanges:\n" prefix because GitHub notes usually include a title.
 api_json=$(cat <<EOF
 {
   "tag_name": "$tag_date",
   "target_commitish": "main",
   "name": "Release $tag_date",
-  "body": "$release_notes",
+  "body": "Automated Release.\\n\\nChanges:\\n$release_notes",
   "draft": false,
   "prerelease": false
 }
